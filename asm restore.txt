@@ -1,0 +1,100 @@
+                                                    TAKE ASM DISK GROUP BACKUP AND RESTORE OTHER SREVER 
+
+rman>
+run
+{
+allocate channel ch1 device type disk;
+crosscheck archivelog all;
+backup as compressed backupset database format '/u01/backup/rman/Fullback_%T_%U'
+plus archivelog format '/u01/backup/rman/Archive_%T_%U';
+backup current controlfile format '/u01/backup/rman/Controlback_%T_%U';
+release channel ch1;
+}
+
+
+SQL> create pfile from spfile;
+
+
+
+[oracle@romi ~]$ cd /u01/backup/rman/
+[oracle@romi rman]$ ll
+total 359828
+-rw-r-----. 1 oracle oinstall  56582144 Jan 25 04:39 Archive_20240125_0a2hen2a_1_1
+-rw-r-----. 1 oracle oinstall      9216 Jan 25 04:39 Archive_20240125_0c2hen4h_1_1
+-rw-r-----. 1 oracle oinstall  10682368 Jan 25 04:39 Controlback_20240125_0d2hen4j_1_1
+-rw-r-----. 1 oracle oinstall 301187072 Jan 25 04:43 Fullback_20240125_0b2hen2q_1_1
+
+[oracle@PROD-SERVER rman]$ scp * oracle@192.168.0.121:/u02/backup/rman/
+[oracle@PROD-SERVER rman]$ cd $ORACLE_HOME/dbs
+[oracle@PROD-SERVER dbs]$ scp orapwPROD initPROD.ora oracle@192.168.0.121:$ORACLE_HOME/dbs/
+
+LOGIN DESTINATION SERVER 
+
+ Startup the Database in nomount stage, restore the controlfile and mount the Database :
+
+
+[oracle@NEW-SERVER ~]$ . oraenv
+ORACLE_SID = [PROD] ? PROD
+The Oracle base remains unchanged with value /u01/app/oracle
+[oracle@NEW-SERVER ~]$
+[oracle@NEW-SERVER ~]$ rman target /
+
+Recovery Manager: Release 19.0.0.0.0 - Production on Tue Mar 30 04:25:27 2021
+Version 19.3.0.0.0
+
+Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.
+
+connected to target database (not started)
+
+RMAN> startup nomount;
+
+
+RMAN> restore controlfile from '/u0/backup/rman/Controlback_20240125_0d2hen4j_1_1';
+
+
+Restore the Database :
+
+
+
+RMAN>
+ run
+{
+allocate channel ch1 device type disk;
+restore database;
+switch datafile all;
+switch tempfile all;
+release channel ch1;
+}
+
+
+RMAN> list backup of archivelog all;
+
+RMAN> 
+run
+{
+allocate channel ch1 device type disk;
+release channel ch1;
+}
+
+Now open the Database :
+
+
+RMAN> alter database open;
+
+RMAN> alter database open;
+
+
+
+
+Check Datafiles and Tempfiles :
+
+
+
+SQL> select DBID, NAME, DB_UNIQUE_NAME, DATABASE_ROLE, OPEN_MODE from v$database;
+
+SQL> select FILE_ID, FILE_NAME, TABLESPACE_NAME, BYTES/1024/1024/1024 "Size In GB" from dba_data_files;
+
+SQL> select FILE_ID, FILE_NAME, TABLESPACE_NAME, BYTES/1024/1024/1024 "Size In GB" from dba_temp_files;
+
+SQL> col MEMBER for a60
+SQL> select * from v$logfile;
